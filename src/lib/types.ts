@@ -30,7 +30,7 @@ export type PoiFeature = Feature<Point, PoiProperties>;
 export type TraceLineFeature = Feature<LineString>;
 export type BufferPolygonFeature = Feature<Polygon>;
 
-export type PoiSource = 'refuges' | 'osm';
+export type PoiSource = 'refuges' | 'osm' | 'c2c';
 
 export interface PoiCandidate {
   feature: PoiFeature;
@@ -65,7 +65,7 @@ export interface TypeMeta {
   valeurAPI: string;
   color: string;
   /** Clé d'icône Lucide consommée par <TypeIcon /> */
-  iconKey: 'home' | 'tent' | 'bed' | 'droplet' | 'alert' | 'waves';
+  iconKey: 'home' | 'tent' | 'bed' | 'droplet' | 'alert' | 'waves' | 'mountain';
   /** Path SVG (inner of <g>) pour marker de carte rasterizé */
   svgPath: string;
 }
@@ -84,6 +84,8 @@ const LUCIDE_PATHS: Record<TypeMeta['iconKey'], string> = {
   // Waves (Lucide) — utilisé pour les sources OSM (distinction visuelle vs pt_eau refuges.info)
   waves:
     '<path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>',
+  // Mountain (Lucide) — utilisé pour les bivouacs Camptocamp
+  mountain: '<path d="m8 3 4 8 5-5 5 15H2L8 3z"/>',
 };
 
 export const TYPE_LABELS = {
@@ -136,6 +138,14 @@ export const TYPE_LABELS = {
     iconKey: 'waves',
     svgPath: LUCIDE_PATHS.waves,
   },
+  c2c_bivouac: {
+    id: -2,
+    label: 'Bivouacs (Camptocamp)',
+    valeurAPI: 'c2c_bivouac',
+    color: '#8B6F47', // brun bois
+    iconKey: 'mountain',
+    svgPath: LUCIDE_PATHS.mountain,
+  },
 } as const satisfies Record<string, TypeMeta>;
 
 export type TypeKey = keyof typeof TYPE_LABELS;
@@ -152,7 +162,7 @@ export const REFUGES_TYPE_KEYS: TypeKey[] = [
 ];
 
 /** Types issus de sources annexes (toggle séparé, opt-in) */
-export const ANNEX_TYPE_KEYS: TypeKey[] = ['osm_water'];
+export const ANNEX_TYPE_KEYS: TypeKey[] = ['osm_water', 'c2c_bivouac'];
 
 const VALEUR_TO_META: Record<string, TypeMeta> = Object.fromEntries(
   Object.values(TYPE_LABELS).map((t) => [t.valeurAPI, t]),

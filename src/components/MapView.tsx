@@ -12,7 +12,9 @@ import {
 } from '@/lib/geo';
 import { fetchPOIsInBbox } from '@/lib/refuges-api';
 import { fetchWaterPointsOSM } from '@/lib/overpass-api';
+import { fetchBivouacsC2C } from '@/lib/camptocamp-api';
 import { BUFFER_STEPS, TYPE_LABELS, type TypeKey } from '@/lib/types';
+import type { PoiCandidate } from '@/lib/types';
 import { loadAllMarkerImages } from '@/lib/markers';
 
 // OSM standard : ouvert, très tolérant, attribution standard.
@@ -58,6 +60,11 @@ export function MapView() {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const mapRef = React.useRef<maplibregl.Map | null>(null);
   const initialized = React.useRef(false);
+  // Les markers SVG sont chargés en async via Image() → si on essaie d'appliquer
+  // les POIs sur la couche symbol avant que les images soient enregistrées,
+  // MapLibre ne rend rien (l'icône reste invisible jusqu'à la prochaine
+  // mise à jour de la source). On gate donc l'update sur ce flag.
+  const [markersReady, setMarkersReady] = React.useState(false);
 
   const trace = useAppStore((s) => s.trace);
   const bufferStepIdx = useAppStore((s) => s.bufferStepIdx);
@@ -107,8 +114,12 @@ export function MapView() {
         paint: { 'line-color': '#1e40af', 'line-width': 4, 'line-opacity': 0.9 },
       });
 
-      // Markers SVG (cercle coloré + icône Lucide) — chargement asynchrone
-      registerAllMarkers(map).catch((e) => console.error('markers load failed', e));
+      // Markers SVG (cercle coloré + icône Lucide) — chargement asynchrone.
+      // Une fois prêts, on flip markersReady → l'effect de rendu des POIs se
+      // déclenchera (ou se ré-exécutera) pour afficher les icônes.
+      registerAllMarkers(map)
+        .then(() => setMarkersReady(true))
+        .catch((e) => console.error('markers load failed', e));
 
       map.addSource('pois', { type: 'geojson', data: EMPTY_FC });
 
@@ -236,7 +247,7 @@ export function MapView() {
     return () => ctrl.abort();
   }, [trace, bufferStepIdx, enabledTypes, setCandidates, setLoading, setApiError]);
 
-  // ─── Fetch sources annexes (Overpass / OSM) ─────────────────────
+  // ─── Fetch sources annexes (Overpass + Camptocamp) ──────────────
   React.useEffect(() => {
     if (!trace || enabledAnnexTypes.size === 0) {
       setAnnexCandidates([]);
@@ -251,25 +262,34 @@ export function MapView() {
     const bbox = expandBboxMeters(traceBbox(trace), bufferM);
     const line = traceToLine(trace);
 
-    // Pour l'instant, une seule annex source : osm_water
     const wantWater = enabledAnnexTypes.has('osm_water' as TypeKey);
+    const wantBivouac = enabledAnnexTypes.has('c2c_bivouac' as TypeKey);
 
-    const tasks: Promise<unknown>[] = [];
+    const tasks: Promise<PoiCandidate[]>[] = [];
     if (wantWater) {
       tasks.push(
-        fetchWaterPointsOSM(bbox, ctrl.signal).then((pois) => {
-          const cands = filterByDistance(line, pois, bufferM, 'osm');
-          setAnnexCandidates(cands);
-        }),
+        fetchWaterPointsOSM(bbox, ctrl.signal).then((pois) =>
+          filterByDistance(line, pois, bufferM, 'osm'),
+        ),
       );
-    } else {
-      setAnnexCandidates([]);
+    }
+    if (wantBivouac) {
+      tasks.push(
+        fetchBivouacsC2C(bbox, ctrl.signal).then((pois) =>
+          filterByDistance(line, pois, bufferM, 'c2c'),
+        ),
+      );
     }
 
     Promise.all(tasks)
+      .then((results) => {
+        const merged = results.flat();
+        merged.sort((a, b) => a.distM - b.distM);
+        setAnnexCandidates(merged);
+      })
       .catch((e) => {
         if ((e as Error).name !== 'AbortError') {
-          setAnnexError(e instanceof Error ? e.message : 'Erreur Overpass');
+          setAnnexError(e instanceof Error ? e.message : 'Erreur source annexe');
           setAnnexCandidates([]);
         }
       })
@@ -286,7 +306,12 @@ export function MapView() {
   ]);
 
   // ─── Update POIs layer ──────────────────────────────────────────
+  // Gate sur markersReady : on évite de pousser les features avant que les
+  // images soient enregistrées, sinon MapLibre rend l'icône comme manquante
+  // (point invisible). Une fois markersReady true, l'effect re-fire avec les
+  // candidates actuels et tout s'affiche correctement.
   React.useEffect(() => {
+    if (!markersReady) return;
     const map = mapRef.current;
     if (!map) return;
     const apply = () => {
@@ -311,7 +336,7 @@ export function MapView() {
     };
     if (map.isStyleLoaded()) apply();
     else map.once('load', apply);
-  }, [candidates, annexCandidates, selectedIds]);
+  }, [candidates, annexCandidates, selectedIds, markersReady]);
 
   return <div ref={containerRef} className="absolute inset-0 h-full w-full" />;
 }

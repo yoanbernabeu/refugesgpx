@@ -5,6 +5,8 @@ import { Button } from './ui/Button';
 import { Loader2, ExternalLink, Plus, Check } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { fetchComments, fetchPointFiche, refugesPhotoUrl } from '@/lib/refuges-api';
+import { fetchBivouacFicheC2C } from '@/lib/camptocamp-api';
+import { renderC2CMarkup } from '@/lib/c2c-markup';
 import { getTypeMeta } from '@/lib/types';
 import { decodeHtmlEntities, formatDate } from '@/lib/format';
 import { TypeIcon } from './TypeIcon';
@@ -30,6 +32,17 @@ export function POIDetailDialog() {
   if (openCandidate?.source === 'osm') {
     return (
       <OSMDetailDialog
+        candidate={openCandidate}
+        isSelected={selectedIds.has(openCandidate.id)}
+        onToggleSelect={() => toggleSelected(openCandidate.id)}
+        onClose={() => openDetail(null)}
+      />
+    );
+  }
+
+  if (openCandidate?.source === 'c2c') {
+    return (
+      <C2CDetailDialog
         candidate={openCandidate}
         isSelected={selectedIds.has(openCandidate.id)}
         onToggleSelect={() => toggleSelected(openCandidate.id)}
@@ -269,6 +282,130 @@ function readableTagValue(key: string, val: string): string {
   if (val === 'private') return 'privé';
   if (key === 'ele') return `${Math.round(parseFloat(val))} m`;
   return val;
+}
+
+// ─── Dialog Camptocamp ──────────────────────────────────────────────
+
+function C2CDetailDialog({
+  candidate,
+  isSelected,
+  onToggleSelect,
+  onClose,
+}: {
+  candidate: PoiCandidate;
+  isSelected: boolean;
+  onToggleSelect: () => void;
+  onClose: () => void;
+}) {
+  const f = candidate.feature;
+  const p = f.properties as Record<string, unknown>;
+  const nom = (p.nom as string) ?? 'Bivouac';
+  const meta = getTypeMeta('c2c_bivouac');
+  const alt = (p.coord as { alt?: number } | undefined)?.alt;
+  const c2cId = p.c2cId as number | undefined;
+  const summary = p.c2cSummary as string | undefined;
+  const link = (p.lien as string | undefined) ?? '';
+
+  const [fiche, setFiche] = React.useState<{
+    description?: string;
+    access?: string;
+  } | null>(null);
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!c2cId) return;
+    const ctrl = new AbortController();
+    setLoading(true);
+    fetchBivouacFicheC2C(c2cId, ctrl.signal)
+      .then((data) => {
+        if (data) setFiche({ description: data.description, access: data.access });
+      })
+      .catch(() => {
+        /* affichage avec ce qu'on a déjà */
+      })
+      .finally(() => setLoading(false));
+    return () => ctrl.abort();
+  }, [c2cId]);
+
+  return (
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogTitle className="flex items-center gap-2.5 pr-8">
+          {meta && <TypeIcon meta={meta} size={18} marker />}
+          <span>{decodeHtmlEntities(nom)}</span>
+          <span className="rounded-sm bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">
+            C2C
+          </span>
+        </DialogTitle>
+        <div className="text-sm text-slate-500">
+          bivouac{alt !== undefined && ` · ${alt} m`}
+        </div>
+
+        {summary && (
+          <p className="text-sm font-medium text-slate-700">
+            {decodeHtmlEntities(summary)}
+          </p>
+        )}
+
+        {loading && (
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Chargement de la fiche…
+          </div>
+        )}
+
+        {fiche?.description && (
+          <div>
+            <div className="mb-1 text-sm font-semibold text-slate-700">Description</div>
+            <div
+              className="prose-fiche c2c-prose max-h-64 overflow-y-auto text-sm text-slate-700"
+              dangerouslySetInnerHTML={{ __html: renderC2CMarkup(fiche.description) }}
+            />
+          </div>
+        )}
+
+        {fiche?.access && (
+          <div>
+            <div className="mb-1 text-sm font-semibold text-slate-700">Accès</div>
+            <div
+              className="prose-fiche c2c-prose max-h-48 overflow-y-auto text-sm text-slate-700"
+              dangerouslySetInnerHTML={{ __html: renderC2CMarkup(fiche.access) }}
+            />
+          </div>
+        )}
+
+        {link && (
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline"
+          >
+            Fiche complète sur camptocamp.org <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
+
+        <div className="flex justify-end pt-2">
+          <Button
+            variant={isSelected ? 'subtle' : 'primary'}
+            onClick={() => {
+              onToggleSelect();
+              onClose();
+            }}
+          >
+            {isSelected ? (
+              <>
+                <Check className="h-4 w-4" /> Retirer de l'export
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4" /> Ajouter à l'export
+              </>
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function OSMDetailDialog({

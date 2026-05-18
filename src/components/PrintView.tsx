@@ -5,6 +5,8 @@ import { getTypeMeta } from '@/lib/types';
 import { TypeIcon } from './TypeIcon';
 import { traceLengthKm, traceElevationStats } from '@/lib/geo';
 import { fetchComments, fetchPointFiche, refugesPhotoUrl } from '@/lib/refuges-api';
+import { fetchBivouacFicheC2C } from '@/lib/camptocamp-api';
+import { renderC2CMarkup } from '@/lib/c2c-markup';
 import { decodeHtmlEntities, formatDate, formatDistance } from '@/lib/format';
 import { Button } from './ui/Button';
 import { PrintMap } from './PrintMap';
@@ -22,6 +24,8 @@ interface Enriched {
   comments: Comment[];
   distM: number;
   source: PoiSource;
+  c2cDescription?: string;
+  c2cAccess?: string;
   error?: string;
 }
 
@@ -54,6 +58,34 @@ export function PrintView() {
           // Source 'osm' : pas d'enrichissement distant — on lit les tags localement
           if (source === 'osm') {
             return { feature, fiche: null, comments: [], distM, source: 'osm' };
+          }
+          // Source 'c2c' : on fetche la fiche bivouac pour récupérer description + accès
+          if (source === 'c2c') {
+            const c2cId = (feature.properties as { c2cId?: number }).c2cId;
+            if (typeof c2cId !== 'number') {
+              return { feature, fiche: null, comments: [], distM, source: 'c2c' };
+            }
+            try {
+              const fiche = await fetchBivouacFicheC2C(c2cId, ctrl.signal);
+              return {
+                feature,
+                fiche: null,
+                comments: [],
+                distM,
+                source: 'c2c',
+                c2cDescription: fiche?.description,
+                c2cAccess: fiche?.access,
+              };
+            } catch (e) {
+              return {
+                feature,
+                fiche: null,
+                comments: [],
+                distM,
+                source: 'c2c',
+                error: e instanceof Error ? e.message : 'err',
+              };
+            }
           }
           const idCandidate =
             (feature.properties.id as number | undefined) ??
@@ -197,6 +229,56 @@ export function PrintView() {
           const meta = getTypeMeta(t);
           const alt = p.coord?.alt;
           const isOsm = item.source === 'osm';
+          const isC2c = item.source === 'c2c';
+
+          if (isC2c) {
+            return (
+              <li
+                key={fallbackId}
+                className="break-inside-avoid border-l-2 border-[#8B6F47] pl-4 print:break-inside-avoid"
+              >
+                <h2 className="font-display flex items-center gap-2 text-xl font-semibold leading-tight">
+                  <span className="text-[var(--color-ink-mute)]">{idx + 1}.</span>
+                  {meta && <TypeIcon meta={meta} size={14} marker />}
+                  <span>{decodeHtmlEntities(p.nom)}</span>
+                  <span className="rounded-sm bg-amber-100 px-1 text-[9px] font-semibold uppercase tracking-wider text-amber-800">
+                    C2C
+                  </span>
+                </h2>
+                <p className="text-xs text-[var(--color-ink-soft)]">
+                  bivouac
+                  {alt !== undefined && ` · ${alt} m`} ·{' '}
+                  <b>{formatDistance(item.distM)} du tracé</b>
+                </p>
+
+                {item.c2cDescription && (
+                  <div className="mt-2">
+                    <div className="section-num text-[10px]">Description</div>
+                    <div
+                      className="prose-print c2c-prose text-sm"
+                      dangerouslySetInnerHTML={{ __html: renderC2CMarkup(item.c2cDescription) }}
+                    />
+                  </div>
+                )}
+
+                {item.c2cAccess && (
+                  <div className="mt-2">
+                    <div className="section-num text-[10px]">Accès</div>
+                    <div
+                      className="prose-print c2c-prose text-sm"
+                      dangerouslySetInnerHTML={{ __html: renderC2CMarkup(item.c2cAccess) }}
+                    />
+                  </div>
+                )}
+
+                {p.lien && (
+                  <p className="mt-2 text-[11px] text-[var(--color-ink-mute)]">
+                    Fiche complète : {p.lien}
+                  </p>
+                )}
+              </li>
+            );
+          }
 
           if (isOsm) {
             const tags = p.osmTags ?? {};
@@ -348,7 +430,7 @@ export function PrintView() {
       </ol>
 
       <footer className="mt-10 border-t border-[var(--color-paper-deep)] pt-3 text-[11px] text-[var(--color-ink-mute)]">
-        Données © refuges.info contributors — CC BY-SA 2.0 · Fond © OpenStreetMap contributors · Généré avec Refuges.GPX (refuges.yoandev.co)
+        Données © refuges.info (CC BY-SA 2.0) · OpenStreetMap (ODbL) · Camptocamp (CC BY-SA) · Fond © OpenStreetMap contributors · Généré avec Refuges.GPX (refuges.yoandev.co)
       </footer>
     </div>
   );

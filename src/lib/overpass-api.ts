@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import type { PoiFeature } from './types';
+import { bboxToGridKey, readCache, writeCache, TTL } from './cache';
 
 const OVERPASS_ENDPOINT = 'https://overpass-api.de/api/interpreter';
+const CACHE_PREFIX = 'osm-water';
 
 const NodeSchema = z.looseObject({
   type: z.literal('node'),
@@ -34,65 +36,24 @@ function deriveSubtype(tags: Record<string, string>): string {
   return 'eau';
 }
 
-const SESSION_CACHE_KEY = 'refuges-overpass-water';
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1h
-const CACHE_MAX_ENTRIES = 10;
-
-interface CacheEntry {
-  ts: number;
-  bbox: number[];
-  features: PoiFeature[];
-}
-
-function readCache(bbox: Bbox): PoiFeature[] | null {
-  if (typeof sessionStorage === 'undefined') return null;
-  try {
-    const raw = sessionStorage.getItem(SESSION_CACHE_KEY);
-    if (!raw) return null;
-    const arr = JSON.parse(raw) as CacheEntry[];
-    const hit = arr.find(
-      (e) =>
-        Array.isArray(e.bbox) &&
-        e.bbox.length === 4 &&
-        e.bbox[0] === bbox[0] &&
-        e.bbox[1] === bbox[1] &&
-        e.bbox[2] === bbox[2] &&
-        e.bbox[3] === bbox[3],
-    );
-    if (hit && Date.now() - hit.ts < CACHE_TTL_MS) return hit.features;
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function writeCache(bbox: Bbox, features: PoiFeature[]): void {
-  if (typeof sessionStorage === 'undefined') return;
-  try {
-    const raw = sessionStorage.getItem(SESSION_CACHE_KEY);
-    const arr: CacheEntry[] = raw ? (JSON.parse(raw) as CacheEntry[]) : [];
-    const next = [{ ts: Date.now(), bbox: [...bbox], features }, ...arr.slice(0, CACHE_MAX_ENTRIES - 1)];
-    sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(next));
-  } catch {
-    /* quota dépassé : noop */
-  }
-}
-
 /**
  * Récupère les points d'eau (sources, eau potable, robinets, puits) OSM
- * dans une bbox via l'API Overpass. Utilise les IDs négatifs (= -osmId) pour
- * éviter toute collision avec les identifiants refuges.info (positifs).
+ * dans une bbox via l'API Overpass. Identifiants négatifs (= -osmId) pour
+ * éviter toute collision avec refuges.info (positifs) et c2c (offset 1e12).
+ * Cache IndexedDB par bbox grid 0,02° (TTL 24 h).
  */
 export async function fetchWaterPointsOSM(
   bbox: Bbox,
   signal?: AbortSignal,
 ): Promise<PoiFeature[]> {
-  const cached = readCache(bbox);
+  const cacheKey = bboxToGridKey(bbox);
+  const cached = await readCache<PoiFeature[]>(CACHE_PREFIX, cacheKey, TTL.BBOX);
   if (cached) return cached;
 
   // Overpass attend "south,west,north,east"
-  const [w, s, e, n] = bbox;
-  const overpassBbox = `${s},${w},${n},${e}`;
+  // On élargit légèrement la requête pour matcher la bbox grid arrondie
+  const [gw, gs, ge, gn] = cacheKey.split(',').map(Number) as Bbox;
+  const overpassBbox = `${gs},${gw},${gn},${ge}`;
 
   const query = `[out:json][timeout:25];
 (
@@ -142,6 +103,6 @@ out body;`;
     } as unknown as PoiFeature);
   }
 
-  writeCache(bbox, features);
+  await writeCache(CACHE_PREFIX, cacheKey, features);
   return features;
 }

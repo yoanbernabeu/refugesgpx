@@ -1,4 +1,4 @@
-import { BedDouble, Droplets, Home, Tent, TriangleAlert, Waves, type LucideIcon } from 'lucide-react';
+import { BedDouble, Droplets, Home, Mountain, Tent, TriangleAlert, Waves, type LucideIcon } from 'lucide-react';
 import type { TypeMeta } from '@/lib/types';
 import { cn } from '@/lib/cn';
 
@@ -9,6 +9,7 @@ const MAP: Record<TypeMeta['iconKey'], LucideIcon> = {
   droplet: Droplets,
   alert: TriangleAlert,
   waves: Waves,
+  mountain: Mountain,
 };
 
 interface TypeIconProps {

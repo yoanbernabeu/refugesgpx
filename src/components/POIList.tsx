@@ -50,7 +50,11 @@ export function POIList() {
             const alt = f.properties.coord?.alt;
             const subtype = (f.properties as { osmSubtype?: string }).osmSubtype;
             const typeLabel =
-              source === 'osm' && subtype ? subtype : decodeHtmlEntities(t);
+              source === 'osm' && subtype
+                ? subtype
+                : source === 'c2c'
+                  ? 'bivouac'
+                  : decodeHtmlEntities(t);
             return (
               <li
                 key={id}
@@ -73,6 +77,11 @@ export function POIList() {
                     {source === 'osm' && (
                       <span className="shrink-0 rounded-sm bg-slate-200 px-1 text-[9px] font-semibold uppercase tracking-wider text-slate-600">
                         OSM
+                      </span>
+                    )}
+                    {source === 'c2c' && (
+                      <span className="shrink-0 rounded-sm bg-amber-100 px-1 text-[9px] font-semibold uppercase tracking-wider text-amber-800">
+                        C2C
                       </span>
                     )}
                   </div>

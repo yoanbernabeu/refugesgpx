@@ -8,6 +8,7 @@ const TYPE_PREFIX: Record<string, string> = {
   "point d'eau": '[Eau]',
   'passage délicat': '[Passage]',
   osm_water: '[Eau OSM]',
+  c2c_bivouac: '[Bivouac C2C]',
 };
 
 function xmlEscape(s: string): string {
@@ -59,7 +60,9 @@ export function buildEnrichedGpx(
       const typeLabel =
         source === 'osm'
           ? `eau OSM${props.osmSubtype ? ` (${props.osmSubtype})` : ''}`
-          : typeValeur;
+          : source === 'c2c'
+            ? 'bivouac (Camptocamp)'
+            : typeValeur;
       const desc = `${typeLabel}${
         alt !== undefined ? ' · ' + alt + ' m' : ''
       } · ${Math.round(distM)} m du tracé`;
@@ -73,10 +76,12 @@ export function buildEnrichedGpx(
     })
     .join('\n');
 
-  const hasOsm = selectedPois.some((p) => p.source === 'osm');
-  const sourcesLabel = hasOsm
-    ? 'refuges.info (CC BY-SA 2.0) + OpenStreetMap (ODbL)'
-    : 'refuges.info (CC BY-SA 2.0)';
+  const usedSources = new Set(selectedPois.map((p) => p.source));
+  const labels: string[] = [];
+  if (usedSources.has('refuges')) labels.push('refuges.info (CC BY-SA 2.0)');
+  if (usedSources.has('osm')) labels.push('OpenStreetMap (ODbL)');
+  if (usedSources.has('c2c')) labels.push('Camptocamp (CC BY-SA)');
+  const sourcesLabel = labels.length > 0 ? labels.join(' + ') : 'refuges.info (CC BY-SA 2.0)';
   return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="refugesgpx" xmlns="http://www.topografix.com/GPX/1/1">
   <metadata>
