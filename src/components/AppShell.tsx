@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { MapView } from './MapView';
 import { Panel } from './Panel';
 import { POIDetailDialog } from './POIDetailDialog';
+import { LoadingBadge } from './LoadingBadge';
 import { useAppStore } from '@/store/useAppStore';
 
 export function AppShell() {
@@ -19,6 +20,7 @@ export function AppShell() {
     <div className="flex h-screen w-full overflow-hidden">
       <main className="relative min-w-0 flex-1">
         <MapView />
+        <LoadingBadge />
       </main>
       <Panel />
       <POIDetailDialog />
