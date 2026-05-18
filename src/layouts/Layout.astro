@@ -8,18 +8,28 @@ interface Props {
   pathname?: string;
   /** Surcharger l'image OG par défaut */
   ogImage?: string;
+  /** Largeur de l'image OG (défaut 1200) */
+  ogImageWidth?: number;
+  /** Hauteur de l'image OG (défaut 630) */
+  ogImageHeight?: number;
+  /** Texte alternatif image OG (a11y + accessibilité Twitter) */
+  ogImageAlt?: string;
   /** Indexer ou non */
   noindex?: boolean;
 }
 
 const SITE_URL = 'https://refuges.yoandev.co';
-const SITE_NAME = 'Refuges GPX';
+const SITE_NAME = 'Refuges.GPX';
+const TWITTER_HANDLE = '@yOyO38';
 
 const {
   title,
-  description = "Importez votre GPX, découvrez les refuges, cabanes et points d'eau de refuges.info à proximité de votre tracé, et repartez avec un GPX enrichi et une fiche d'étape PDF.",
+  description = "Glissez votre GPX, repartez avec les refuges, cabanes et points d'eau refuges.info à proximité de votre tracé. Plus un topo PDF imprimable. Sans inscription, sans backend, open-source.",
   pathname = '',
-  ogImage = '/og.svg',
+  ogImage = '/og.png',
+  ogImageWidth = 1200,
+  ogImageHeight = 630,
+  ogImageAlt = "Refuges.GPX — Votre tracé, enrichi des refuges du coin. Web-app rando open-source.",
   noindex = false,
 } = Astro.props;
 
@@ -39,7 +49,7 @@ const fullOgImage = ogImage.startsWith('http') ? ogImage : `${SITE_URL}${ogImage
     <link rel="canonical" href={canonical} />
     {noindex && <meta name="robots" content="noindex,nofollow" />}
 
-    <!-- OpenGraph / Twitter -->
+    <!-- OpenGraph (Facebook, LinkedIn, Slack, Discord, Mastodon…) -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content={SITE_NAME} />
     <meta property="og:locale" content="fr_FR" />
@@ -47,10 +57,20 @@ const fullOgImage = ogImage.startsWith('http') ? ogImage : `${SITE_URL}${ogImage
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     <meta property="og:image" content={fullOgImage} />
+    <meta property="og:image:secure_url" content={fullOgImage} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content={String(ogImageWidth)} />
+    <meta property="og:image:height" content={String(ogImageHeight)} />
+    <meta property="og:image:alt" content={ogImageAlt} />
+
+    <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content={TWITTER_HANDLE} />
+    <meta name="twitter:creator" content={TWITTER_HANDLE} />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={fullOgImage} />
+    <meta name="twitter:image:alt" content={ogImageAlt} />
 
     <!-- Theme -->
     <meta name="theme-color" content="#FAF7F0" />
