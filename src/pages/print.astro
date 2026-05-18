@@ -1,0 +1,8 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { PrintView } from '@/components/PrintView';
+---
+
+<Layout title="Topo — Refuges.GPX" pathname="/print" noindex={true}>
+  <PrintView client:only="react" />
+</Layout>

@@ -1,0 +1,240 @@
+@import 'tailwindcss';
+
+@theme {
+  /* Typography */
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-sans:
+    'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Palette — Carnet de course alpine */
+  --color-paper: #faf7f0; /* fond principal */
+  --color-paper-warm: #f2ede0; /* surface chaude */
+  --color-paper-deep: #e9e2d0; /* bordures discrètes */
+  --color-ink: #1a1a1a; /* texte principal */
+  --color-ink-soft: #3a3733; /* texte secondaire */
+  --color-ink-mute: #6b6760; /* texte tertiaire */
+  --color-slate-mountain: #2d3439; /* ardoise montagne */
+  --color-accent: #b85c38; /* rouge topographique */
+  --color-accent-dark: #934323; /* hover */
+  --color-trail: #dda853; /* jaune balisage */
+  --color-moss: #5e6f4a; /* vert mousse */
+  --color-sky: #6f93a8; /* bleu ciel pâle */
+}
+
+@layer base {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+    background: var(--color-paper);
+    font-feature-settings: 'kern', 'liga', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-paper);
+  }
+}
+
+#app-root {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Toggle landing ↔ app
+   La landing est cachée dès qu'une trace est chargée (body.is-app).
+   L'AppShell occupe alors tout le viewport.
+   ───────────────────────────────────────────────────────────────── */
+body.is-app .landing,
+body.is-app .landing-nav {
+  display: none;
+}
+body.is-app #app-root {
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* L'app react est cachée tant qu'aucune trace n'est chargée */
+body:not(.is-app) #app-mount {
+  display: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Rich HTML rendered from refuges.info (description, accès, commentaires)
+   ───────────────────────────────────────────────────────────────── */
+.prose-fiche,
+.prose-print {
+  line-height: 1.55;
+  font-family: var(--font-sans);
+  white-space: normal;
+}
+.prose-fiche p,
+.prose-print p {
+  margin: 0.5em 0;
+}
+.prose-fiche a,
+.prose-print a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.prose-fiche ul,
+.prose-print ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Print stylesheet — fiche d'étape
+   ───────────────────────────────────────────────────────────────── */
+@media print {
+  @page {
+    margin: 1.4cm 1.2cm;
+    size: A4;
+  }
+  body {
+    background: white;
+  }
+  a {
+    color: #000 !important;
+    text-decoration: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Décor : courbes de niveau topographiques en arrière-plan landing
+   ───────────────────────────────────────────────────────────────── */
+.topo-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='400' viewBox='0 0 600 400'><g fill='none' stroke='%23b85c38' stroke-width='0.6' stroke-opacity='0.18'><path d='M-50 350 Q 100 280 220 320 T 450 270 T 700 310'/><path d='M-50 310 Q 110 240 230 280 T 460 230 T 700 270'/><path d='M-50 270 Q 120 200 240 240 T 470 190 T 700 230'/><path d='M-50 230 Q 130 160 250 200 T 480 150 T 700 190'/><path d='M-50 190 Q 140 120 260 160 T 490 110 T 700 150'/><path d='M-50 150 Q 150 80 270 120 T 500 70 T 700 110'/><path d='M-50 110 Q 160 40 280 80 T 510 30 T 700 70'/><path d='M-50 70 Q 170 0 290 40 T 520 -10 T 700 30'/></g></svg>");
+  background-repeat: repeat;
+  background-size: 600px 400px;
+  opacity: 0.55;
+}
+
+.grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.07 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  mix-blend-mode: multiply;
+}
+
+/* Utility text */
+.font-display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  letter-spacing: -0.015em;
+}
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Bouton "ouvrir l'app" custom */
+.btn-ink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.95rem 1.6rem;
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-weight: 600;
+  font-family: var(--font-sans);
+  border: 1px solid var(--color-ink);
+  border-radius: 999px;
+  transition:
+    background 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+  text-decoration: none;
+  box-shadow: 0 2px 0 var(--color-ink);
+}
+.btn-ink:hover {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  box-shadow: 0 4px 0 var(--color-ink);
+  transform: translateY(-2px);
+}
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  font-weight: 500;
+}
+.btn-ghost:hover {
+  color: var(--color-accent);
+}
+
+/* Numéros de section type "guide alpin" */
+.section-num {
+  font-family: var(--font-display);
+  font-weight: 800;
+  color: var(--color-accent);
+  font-size: 0.95rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* Underline déco type "trait crayonné" */
+.crayon {
+  background-image: linear-gradient(180deg, transparent 65%, var(--color-trail) 65%, var(--color-trail) 90%, transparent 90%);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  padding: 0 0.1em;
+}
+
+/* Animations landing */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1000;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.rise {
+  animation: rise 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.rise-1 { animation-delay: 60ms; }
+.rise-2 { animation-delay: 160ms; }
+.rise-3 { animation-delay: 260ms; }
+.rise-4 { animation-delay: 360ms; }
+.rise-5 { animation-delay: 460ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
+  }
+}

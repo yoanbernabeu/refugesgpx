@@ -1,0 +1,21 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import Landing from '@/components/Landing.astro';
+import { AppShell } from '@/components/AppShell';
+---
+
+<Layout
+  title="Refuges GPX — enrichissez votre tracé de randonnée avec les refuges et points d'eau"
+  description="Importez votre GPX préparé sur OpenRunner, Komoot ou Visorando. Découvrez les refuges, cabanes, gîtes et points d'eau de refuges.info à proximité de votre tracé. Repartez avec un GPX enrichi et une fiche d'étape PDF. Sans inscription, sans backend, open-source."
+  pathname=""
+>
+  <div id="app-root">
+    <!-- Landing rendue côté serveur (SEO friendly) — cachée par body.is-app -->
+    <Landing />
+
+    <!-- App React — cachée tant que pas de trace, prend le full viewport sinon -->
+    <div id="app-mount">
+      <AppShell client:only="react" />
+    </div>
+  </div>
+</Layout>

@@ -1,0 +1,121 @@
+---
+import '@/styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+  /** Path URL relatif (ex: "/print") pour og:url, sans trailing slash */
+  pathname?: string;
+  /** Surcharger l'image OG par défaut */
+  ogImage?: string;
+  /** Indexer ou non */
+  noindex?: boolean;
+}
+
+const SITE_URL = 'https://refuges.yoandev.co';
+const SITE_NAME = 'Refuges GPX';
+
+const {
+  title,
+  description = "Importez votre GPX, découvrez les refuges, cabanes et points d'eau de refuges.info à proximité de votre tracé, et repartez avec un GPX enrichi et une fiche d'étape PDF.",
+  pathname = '',
+  ogImage = '/og.svg',
+  noindex = false,
+} = Astro.props;
+
+const canonical = `${SITE_URL}${pathname}`;
+const fullOgImage = ogImage.startsWith('http') ? ogImage : `${SITE_URL}${ogImage}`;
+---
+
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="generator" content={Astro.generator} />
+
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex,nofollow" />}
+
+    <!-- OpenGraph / Twitter -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE_NAME} />
+    <meta property="og:locale" content="fr_FR" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={fullOgImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={fullOgImage} />
+
+    <!-- Theme -->
+    <meta name="theme-color" content="#FAF7F0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Fonts (preconnect + display swap) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,800;9..144,900&family=Public+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Structured data : WebApplication -->
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'WebApplication',
+        name: SITE_NAME,
+        url: SITE_URL,
+        applicationCategory: 'TravelApplication',
+        operatingSystem: 'Web Browser',
+        description,
+        inLanguage: 'fr-FR',
+        isAccessibleForFree: true,
+        offers: { '@type': 'Offer', price: 0, priceCurrency: 'EUR' },
+        author: { '@type': 'Person', name: 'Yoan Bernabeu', url: 'https://yoandev.co' },
+        license: 'https://opensource.org/licenses/MIT',
+      })}
+    />
+
+    <script is:inline>
+      // dev-only error catcher
+      window.__errs = [];
+      const _e = console.error;
+      console.error = function (...a) {
+        try {
+          window.__errs.push(
+            a
+              .map((x) => {
+                try {
+                  return x instanceof Error
+                    ? x.stack || x.message
+                    : typeof x === 'object'
+                      ? JSON.stringify(x).slice(0, 800)
+                      : String(x);
+                } catch {
+                  return '[?]';
+                }
+              })
+              .join(' | '),
+          );
+        } catch {}
+        _e.apply(console, a);
+      };
+      window.addEventListener('error', (e) =>
+        window.__errs.push('we: ' + (e.error?.stack || e.message)),
+      );
+      window.addEventListener('unhandledrejection', (e) =>
+        window.__errs.push('ur: ' + (e.reason?.stack || e.reason)),
+      );
+    </script>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
