@@ -30,7 +30,7 @@ export type PoiFeature = Feature<Point, PoiProperties>;
 export type TraceLineFeature = Feature<LineString>;
 export type BufferPolygonFeature = Feature<Polygon>;
 
-export type PoiSource = 'refuges' | 'osm' | 'c2c';
+export type PoiSource = 'refuges' | 'osm' | 'c2c' | 'sncf';
 
 export interface PoiCandidate {
   feature: PoiFeature;
@@ -65,7 +65,16 @@ export interface TypeMeta {
   valeurAPI: string;
   color: string;
   /** Clé d'icône Lucide consommée par <TypeIcon /> */
-  iconKey: 'home' | 'tent' | 'bed' | 'droplet' | 'alert' | 'waves' | 'mountain' | 'bag';
+  iconKey:
+    | 'home'
+    | 'tent'
+    | 'bed'
+    | 'droplet'
+    | 'alert'
+    | 'waves'
+    | 'mountain'
+    | 'bag'
+    | 'train';
   /** Path SVG (inner of <g>) pour marker de carte rasterizé */
   svgPath: string;
 }
@@ -88,6 +97,9 @@ const LUCIDE_PATHS: Record<TypeMeta['iconKey'], string> = {
   mountain: '<path d="m8 3 4 8 5-5 5 15H2L8 3z"/>',
   // ShoppingBag (Lucide) — ravitaillement / commerces OSM en village
   bag: '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+  // TrainFront (Lucide) — gares SNCF
+  train:
+    '<path d="M8 3.1V7a4 4 0 0 0 8 0V3.1"/><path d="m9 15-1-1"/><path d="m15 15 1-1"/><path d="M9 19c-2.8 0-5-2.2-5-5v-4a8 8 0 0 1 16 0v4c0 2.8-2.2 5-5 5Z"/><path d="m8 19-2 3"/><path d="m16 19 2 3"/>',
 };
 
 export const TYPE_LABELS = {
@@ -156,6 +168,14 @@ export const TYPE_LABELS = {
     iconKey: 'bag',
     svgPath: LUCIDE_PATHS.bag,
   },
+  sncf_gare: {
+    id: -4,
+    label: 'Gares SNCF',
+    valeurAPI: 'sncf_gare',
+    color: '#4338CA', // indigo, distinct des autres familles
+    iconKey: 'train',
+    svgPath: LUCIDE_PATHS.train,
+  },
 } as const satisfies Record<string, TypeMeta>;
 
 export type TypeKey = keyof typeof TYPE_LABELS;
@@ -172,7 +192,12 @@ export const REFUGES_TYPE_KEYS: TypeKey[] = [
 ];
 
 /** Types issus de sources annexes (toggle séparé, opt-in) */
-export const ANNEX_TYPE_KEYS: TypeKey[] = ['osm_water', 'c2c_bivouac', 'osm_shop'];
+export const ANNEX_TYPE_KEYS: TypeKey[] = [
+  'osm_water',
+  'c2c_bivouac',
+  'osm_shop',
+  'sncf_gare',
+];
 
 const VALEUR_TO_META: Record<string, TypeMeta> = Object.fromEntries(
   Object.values(TYPE_LABELS).map((t) => [t.valeurAPI, t]),

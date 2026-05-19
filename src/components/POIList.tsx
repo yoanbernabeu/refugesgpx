@@ -54,7 +54,9 @@ export function POIList() {
                 ? (subtype ?? "point d'eau")
                 : source === 'c2c'
                   ? 'bivouac'
-                  : decodeHtmlEntities(t);
+                  : source === 'sncf'
+                    ? 'gare SNCF'
+                    : decodeHtmlEntities(t);
             return (
               <li
                 key={id}
@@ -82,6 +84,11 @@ export function POIList() {
                     {source === 'c2c' && (
                       <span className="shrink-0 rounded-sm bg-amber-100 px-1 text-[9px] font-semibold uppercase tracking-wider text-amber-800">
                         C2C
+                      </span>
+                    )}
+                    {source === 'sncf' && (
+                      <span className="shrink-0 rounded-sm bg-indigo-100 px-1 text-[9px] font-semibold uppercase tracking-wider text-indigo-800">
+                        SNCF
                       </span>
                     )}
                   </div>

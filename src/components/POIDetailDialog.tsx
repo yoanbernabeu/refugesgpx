@@ -52,6 +52,17 @@ export function POIDetailDialog() {
     );
   }
 
+  if (openCandidate?.source === 'sncf') {
+    return (
+      <SNCFDetailDialog
+        candidate={openCandidate}
+        isSelected={selectedIds.has(openCandidate.id)}
+        onToggleSelect={() => toggleSelected(openCandidate.id)}
+        onClose={() => openDetail(null)}
+      />
+    );
+  }
+
   return (
     <RefugesDetailDialog
       openId={openId}
@@ -360,6 +371,93 @@ function C2CDetailDialog({
             Fiche complète sur camptocamp.org <ExternalLink className="h-3 w-3" />
           </a>
         )}
+
+        <div className="flex justify-end pt-2">
+          <Button
+            variant={isSelected ? 'subtle' : 'primary'}
+            onClick={() => {
+              onToggleSelect();
+              onClose();
+            }}
+          >
+            {isSelected ? (
+              <>
+                <Check className="h-4 w-4" /> Retirer de l'export
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4" /> Ajouter à l'export
+              </>
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Dialog SNCF (gares de voyageurs, lecture statique) ─────────────
+
+const SNCF_SEGMENT_LABEL: Record<string, string> = {
+  A: 'Grande gare nationale',
+  B: 'Gare régionale',
+  C: 'Halte',
+};
+
+function SNCFDetailDialog({
+  candidate,
+  isSelected,
+  onToggleSelect,
+  onClose,
+}: {
+  candidate: PoiCandidate;
+  isSelected: boolean;
+  onToggleSelect: () => void;
+  onClose: () => void;
+}) {
+  const f = candidate.feature;
+  const p = f.properties as Record<string, unknown>;
+  const nom = (p.nom as string) ?? 'Gare';
+  const meta = getTypeMeta('sncf_gare');
+  const uic = p.sncfUic as string | undefined;
+  const lc = p.sncfLibelleCourt as string | undefined;
+  const seg = p.sncfSegment as string | undefined;
+  const segLabel = seg ? (SNCF_SEGMENT_LABEL[seg] ?? `Segment ${seg}`) : undefined;
+  // Pas d'URL gare canonique côté SNCF Connect : la recherche Wikipédia est
+  // le plus robuste compromis (la majorité des gares ont un article).
+  const wikiSearch = `https://fr.wikipedia.org/w/index.php?search=${encodeURIComponent(
+    `gare de ${nom}`,
+  )}`;
+
+  return (
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogTitle className="flex items-center gap-2.5 pr-8">
+          {meta && <TypeIcon meta={meta} size={18} marker />}
+          <span>{decodeHtmlEntities(nom)}</span>
+          <span className="rounded-sm bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-800">
+            SNCF
+          </span>
+        </DialogTitle>
+        <div className="text-sm text-slate-500">
+          {segLabel ?? 'Gare de voyageurs'}
+          {lc && ` · ${lc}`}
+          {uic && ` · UIC ${uic}`}
+        </div>
+
+        <div className="rounded bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
+          <b>À vérifier :</b> ouverture saisonnière et horaires sur sncf-connect.com
+          (certaines haltes ne sont pas desservies toute l'année).
+        </div>
+
+        <a
+          href={wikiSearch}
+          target="_blank"
+          rel="noopener"
+          className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline"
+        >
+          Chercher cette gare sur Wikipédia <ExternalLink className="h-3 w-3" />
+        </a>
 
         <div className="flex justify-end pt-2">
           <Button

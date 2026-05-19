@@ -22,6 +22,7 @@ const SHORT_LABEL: Record<TypeKey, string> = {
   osm_water: 'Eau OSM',
   c2c_bivouac: 'Bivouacs',
   osm_shop: 'Ravitaillement',
+  sncf_gare: 'Gares',
 };
 
 interface PillProps {
@@ -195,6 +196,15 @@ export function Filters() {
             className="underline hover:text-[var(--color-accent)]"
           >
             Camptocamp
+          </a>{' '}
+          · gares via{' '}
+          <a
+            href="https://www.data.gouv.fr/datasets/gares-de-voyageurs-1"
+            target="_blank"
+            rel="noopener"
+            className="underline hover:text-[var(--color-accent)]"
+          >
+            SNCF
           </a>
           . Vérifier sur le terrain.
         </p>

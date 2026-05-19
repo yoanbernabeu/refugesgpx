@@ -13,6 +13,7 @@ import {
 import { fetchPOIsInBbox } from '@/lib/refuges-api';
 import { fetchWaterPointsOSM, fetchShopsOSM } from '@/lib/overpass-api';
 import { fetchBivouacsC2C } from '@/lib/camptocamp-api';
+import { fetchGaresSNCF } from '@/lib/transports-api';
 import { BUFFER_STEPS, TYPE_LABELS, type TypeKey } from '@/lib/types';
 import type { PoiCandidate } from '@/lib/types';
 import { loadAllMarkerImages } from '@/lib/markers';
@@ -354,6 +355,7 @@ export function MapView() {
     const wantWater = enabledAnnexTypes.has('osm_water' as TypeKey);
     const wantBivouac = enabledAnnexTypes.has('c2c_bivouac' as TypeKey);
     const wantShop = enabledAnnexTypes.has('osm_shop' as TypeKey);
+    const wantGare = enabledAnnexTypes.has('sncf_gare' as TypeKey);
 
     const tasks: Promise<PoiCandidate[]>[] = [];
     if (wantWater) {
@@ -374,6 +376,19 @@ export function MapView() {
       tasks.push(
         fetchShopsOSM(bbox, ctrl.signal).then((pois) =>
           filterByDistance(line, pois, bufferM, 'osm'),
+        ),
+      );
+    }
+    if (wantGare) {
+      // Buffer plus généreux pour les gares : un randonneur cherche surtout
+      // un point d'accès au début et à la fin du tracé, parfois à plusieurs
+      // kilomètres. Plancher à 3 km pour rester utile même avec un buffer
+      // d'analyse principal très resserré (100-500 m).
+      const transportBufferM = Math.max(bufferM, 3000);
+      const transportBbox = expandBboxMeters(traceBbox(trace), transportBufferM);
+      tasks.push(
+        fetchGaresSNCF(transportBbox, ctrl.signal).then((pois) =>
+          filterByDistance(line, pois, transportBufferM, 'sncf'),
         ),
       );
     }

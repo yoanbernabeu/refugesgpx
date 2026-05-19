@@ -59,6 +59,11 @@ export function PrintView() {
           if (source === 'osm') {
             return { feature, fiche: null, comments: [], distM, source: 'osm' };
           }
+          // Source 'sncf' : pas d'enrichissement distant — toutes les infos
+          // utiles sont déjà dans le feature (nom, UIC, segment).
+          if (source === 'sncf') {
+            return { feature, fiche: null, comments: [], distM, source: 'sncf' };
+          }
           // Source 'c2c' : on fetche la fiche bivouac pour récupérer description + accès
           if (source === 'c2c') {
             const c2cId = (feature.properties as { c2cId?: number }).c2cId;
@@ -230,6 +235,45 @@ export function PrintView() {
           const alt = p.coord?.alt;
           const isOsm = item.source === 'osm';
           const isC2c = item.source === 'c2c';
+          const isSncf = item.source === 'sncf';
+
+          if (isSncf) {
+            const uic = (p as { sncfUic?: string }).sncfUic;
+            const lc = (p as { sncfLibelleCourt?: string }).sncfLibelleCourt;
+            const seg = (p as { sncfSegment?: string }).sncfSegment;
+            const segLabel =
+              seg === 'A'
+                ? 'Grande gare nationale'
+                : seg === 'B'
+                  ? 'Gare régionale'
+                  : seg === 'C'
+                    ? 'Halte'
+                    : 'Gare de voyageurs';
+            return (
+              <li
+                key={fallbackId}
+                className="break-inside-avoid border-l-2 border-[#4338CA] pl-4 print:break-inside-avoid"
+              >
+                <h2 className="font-display flex items-center gap-2 text-xl font-semibold leading-tight">
+                  <span className="text-[var(--color-ink-mute)]">{idx + 1}.</span>
+                  {meta && <TypeIcon meta={meta} size={14} marker />}
+                  <span>{decodeHtmlEntities(p.nom)}</span>
+                  <span className="rounded-sm bg-indigo-100 px-1 text-[9px] font-semibold uppercase tracking-wider text-indigo-800">
+                    SNCF
+                  </span>
+                </h2>
+                <p className="text-xs text-[var(--color-ink-soft)]">
+                  {segLabel}
+                  {lc && ` · ${lc}`}
+                  {uic && ` · UIC ${uic}`} ·{' '}
+                  <b>{formatDistance(item.distM)} du tracé</b>
+                </p>
+                <p className="mt-1.5 text-[11px] italic text-[var(--color-ink-mute)]">
+                  Horaires et desserte à vérifier sur sncf-connect.com.
+                </p>
+              </li>
+            );
+          }
 
           if (isC2c) {
             return (
