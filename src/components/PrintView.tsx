@@ -6,6 +6,7 @@ import { TypeIcon } from './TypeIcon';
 import { traceLengthKm, traceElevationStats } from '@/lib/geo';
 import { fetchComments, fetchPointFiche, refugesPhotoUrl } from '@/lib/refuges-api';
 import { fetchBivouacFicheC2C } from '@/lib/camptocamp-api';
+import { dtSubtypeLabel } from '@/lib/datatourisme-api';
 import { renderC2CMarkup } from '@/lib/c2c-markup';
 import { decodeHtmlEntities, formatDate, formatDistance } from '@/lib/format';
 import { Button } from './ui/Button';
@@ -63,6 +64,10 @@ export function PrintView() {
           // utiles sont déjà dans le feature (nom, UIC, segment).
           if (source === 'sncf') {
             return { feature, fiche: null, comments: [], distM, source: 'sncf' };
+          }
+          // Source 'datatourisme' : idem, données complètes dans le feature.
+          if (source === 'datatourisme') {
+            return { feature, fiche: null, comments: [], distM, source: 'datatourisme' };
           }
           // Source 'c2c' : on fetche la fiche bivouac pour récupérer description + accès
           if (source === 'c2c') {
@@ -236,6 +241,44 @@ export function PrintView() {
           const isOsm = item.source === 'osm';
           const isC2c = item.source === 'c2c';
           const isSncf = item.source === 'sncf';
+          const isDt = item.source === 'datatourisme';
+
+          if (isDt) {
+            const sub = (p as { dtSubtype?: string }).dtSubtype;
+            const commune = (p as { dtCommune?: string }).dtCommune;
+            const communeName = commune?.includes('#') ? commune.split('#')[1] : commune;
+            const cp = commune?.includes('#') ? commune.split('#')[0] : undefined;
+            const web = (p as { dtWeb?: string }).dtWeb;
+            return (
+              <li
+                key={fallbackId}
+                className="break-inside-avoid border-l-2 border-[#A21E45] pl-4 print:break-inside-avoid"
+              >
+                <h2 className="font-display flex items-center gap-2 text-xl font-semibold leading-tight">
+                  <span className="text-[var(--color-ink-mute)]">{idx + 1}.</span>
+                  {meta && <TypeIcon meta={meta} size={14} marker />}
+                  <span>{decodeHtmlEntities(p.nom)}</span>
+                  <span className="rounded-sm bg-rose-100 px-1 text-[9px] font-semibold uppercase tracking-wider text-rose-800">
+                    DT
+                  </span>
+                </h2>
+                <p className="text-xs text-[var(--color-ink-soft)]">
+                  {dtSubtypeLabel(sub)}
+                  {communeName && ` · ${decodeHtmlEntities(communeName)}`}
+                  {cp && ` (${cp})`} ·{' '}
+                  <b>{formatDistance(item.distM)} du tracé</b>
+                </p>
+                {web && (
+                  <p className="mt-2 text-[11px] text-[var(--color-ink-mute)]">
+                    Site : {web}
+                  </p>
+                )}
+                <p className="mt-1.5 text-[11px] italic text-[var(--color-ink-mute)]">
+                  Ouverture saisonnière et tarifs à confirmer auprès de l'établissement.
+                </p>
+              </li>
+            );
+          }
 
           if (isSncf) {
             const uic = (p as { sncfUic?: string }).sncfUic;

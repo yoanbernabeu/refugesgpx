@@ -30,7 +30,7 @@ export type PoiFeature = Feature<Point, PoiProperties>;
 export type TraceLineFeature = Feature<LineString>;
 export type BufferPolygonFeature = Feature<Polygon>;
 
-export type PoiSource = 'refuges' | 'osm' | 'c2c' | 'sncf';
+export type PoiSource = 'refuges' | 'osm' | 'c2c' | 'sncf' | 'datatourisme';
 
 export interface PoiCandidate {
   feature: PoiFeature;
@@ -74,7 +74,8 @@ export interface TypeMeta {
     | 'waves'
     | 'mountain'
     | 'bag'
-    | 'train';
+    | 'train'
+    | 'bed_single';
   /** Path SVG (inner of <g>) pour marker de carte rasterizé */
   svgPath: string;
 }
@@ -100,6 +101,9 @@ const LUCIDE_PATHS: Record<TypeMeta['iconKey'], string> = {
   // TrainFront (Lucide) — gares SNCF
   train:
     '<path d="M8 3.1V7a4 4 0 0 0 8 0V3.1"/><path d="m9 15-1-1"/><path d="m15 15 1-1"/><path d="M9 19c-2.8 0-5-2.2-5-5v-4a8 8 0 0 1 16 0v4c0 2.8-2.2 5-5 5Z"/><path d="m8 19-2 3"/><path d="m16 19 2 3"/>',
+  // Bed (Lucide) — hébergements Datatourisme (distinct du BedDouble gîte refuges.info)
+  bed_single:
+    '<path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/>',
 };
 
 export const TYPE_LABELS = {
@@ -176,6 +180,14 @@ export const TYPE_LABELS = {
     iconKey: 'train',
     svgPath: LUCIDE_PATHS.train,
   },
+  dt_lodging: {
+    id: -5,
+    label: 'Hébergements (DATAtourisme)',
+    valeurAPI: 'dt_lodging',
+    color: '#A21E45', // cramoisi, distinct du violet gîte refuges.info et de l'indigo gare
+    iconKey: 'bed_single',
+    svgPath: LUCIDE_PATHS.bed_single,
+  },
 } as const satisfies Record<string, TypeMeta>;
 
 export type TypeKey = keyof typeof TYPE_LABELS;
@@ -197,6 +209,7 @@ export const ANNEX_TYPE_KEYS: TypeKey[] = [
   'c2c_bivouac',
   'osm_shop',
   'sncf_gare',
+  'dt_lodging',
 ];
 
 const VALEUR_TO_META: Record<string, TypeMeta> = Object.fromEntries(
@@ -222,3 +235,138 @@ export const BUFFER_STEPS: BufferStep[] = [
   { meters: 3000, label: '3 km' },
   { meters: 5000, label: '5 km' },
 ];
+
+// ─── Catégories de besoins utilisateur ─────────────────────────
+// Le sélecteur affiche 5 catégories (Dormir/Boire/Ravito/Transport/Attention)
+// au lieu de 10 sources individuelles. Chaque catégorie regroupe plusieurs
+// TypeKey ; l'utilisateur peut activer une catégorie entière en un clic,
+// ou expanser pour cocher source par source.
+
+export type Category = 'dormir' | 'boire' | 'ravito' | 'transport' | 'attention';
+
+export interface CategoryMeta {
+  label: string;
+  iconKey: TypeMeta['iconKey'];
+}
+
+export const CATEGORY_META: Record<Category, CategoryMeta> = {
+  dormir: { label: 'Dormir', iconKey: 'home' },
+  boire: { label: 'Boire', iconKey: 'droplet' },
+  ravito: { label: 'Ravito', iconKey: 'bag' },
+  transport: { label: 'Transport', iconKey: 'train' },
+  attention: { label: 'Attention', iconKey: 'alert' },
+};
+
+export const CATEGORY_ORDER: Category[] = [
+  'dormir',
+  'boire',
+  'ravito',
+  'transport',
+  'attention',
+];
+
+/** Mapping catégorie → TypeKey qu'elle regroupe. La granularité Dormir est
+ * ensuite affinée par les sous-groupes DATAtourisme (cf DT_GROUPS). */
+export const CATEGORY_TO_TYPES: Record<Category, TypeKey[]> = {
+  dormir: ['refuge', 'cabane', 'gite', 'c2c_bivouac', 'dt_lodging'],
+  boire: ['pt_eau', 'osm_water'],
+  ravito: ['osm_shop'],
+  transport: ['sncf_gare'],
+  attention: ['pt_passage'],
+};
+
+// ─── Sous-groupes DATAtourisme ─────────────────────────────────
+// DATAtourisme expose une vingtaine d'URIs ontologiques pour les hébergements
+// (Hotel, MountainHut, BedAndBreakfast, etc.). Pour l'UI on les regroupe en
+// 9 catégories user-friendly. Le filtre côté MapView lit `enabledDtGroups`
+// du store et ne garde que les features dont le sub appartient à un groupe
+// activé.
+
+export type DtGroup =
+  | 'mountain_refuges'
+  | 'gites'
+  | 'bnb'
+  | 'hostels'
+  | 'camping'
+  | 'hotels'
+  | 'holiday_resort'
+  | 'rental'
+  | 'other';
+
+export interface DtGroupMeta {
+  label: string;
+  subtypes: string[]; // URIs ontologiques DATAtourisme
+}
+
+export const DT_GROUPS: Record<DtGroup, DtGroupMeta> = {
+  mountain_refuges: {
+    label: 'Refuges privés',
+    subtypes: ['MountainHut', 'MountainRefuge'],
+  },
+  gites: {
+    label: "Gîtes d'étape",
+    subtypes: ['Gite', 'GiteEtape', 'RuralAccommodation'],
+  },
+  bnb: {
+    label: "Chambres d'hôtes",
+    subtypes: ['BedAndBreakfast', 'GuestRoom'],
+  },
+  hostels: {
+    label: 'Auberges',
+    subtypes: ['Hostel', 'YouthHostel', 'CollectiveAccommodation'],
+  },
+  camping: {
+    label: 'Campings',
+    subtypes: ['Camping', 'CampingAndCaravanning'],
+  },
+  hotels: {
+    label: 'Hôtels',
+    subtypes: ['Hotel', 'HotelTrade', 'HotelRestaurant'],
+  },
+  holiday_resort: {
+    label: 'Villages de vacances',
+    subtypes: ['HolidayResort'],
+  },
+  rental: {
+    label: 'Locations',
+    subtypes: ['Rental'],
+  },
+  other: {
+    label: 'Autres hébergements',
+    subtypes: ['Accommodation', 'LodgingBusiness'],
+  },
+};
+
+export const DT_GROUP_ORDER: DtGroup[] = [
+  'mountain_refuges',
+  'gites',
+  'bnb',
+  'hostels',
+  'camping',
+  'hotels',
+  'holiday_resort',
+  'rental',
+  'other',
+];
+
+const DT_SUBTYPE_TO_GROUP: Record<string, DtGroup> = (() => {
+  const map: Record<string, DtGroup> = {};
+  for (const [group, meta] of Object.entries(DT_GROUPS)) {
+    for (const sub of meta.subtypes) {
+      map[sub] = group as DtGroup;
+    }
+  }
+  return map;
+})();
+
+export function getDtGroupForSubtype(sub: string | undefined | null): DtGroup {
+  if (!sub) return 'other';
+  return DT_SUBTYPE_TO_GROUP[sub] ?? 'other';
+}
+
+/** Classification "Gratuit / Avec service" pour le sous-menu Dormir.
+ * Cabanes non gardées et bivouacs Camptocamp = gratuits/autonomes ;
+ * tout le reste demande nuit/cotisation/service. */
+export const DORMIR_FREE_TYPES: TypeKey[] = ['cabane', 'c2c_bivouac'];
+export const DORMIR_PAID_TYPES: TypeKey[] = ['refuge', 'gite'];
+// dt_lodging est traité à part car il a son propre sous-menu par groupe DT.

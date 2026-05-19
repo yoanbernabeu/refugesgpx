@@ -11,6 +11,7 @@ const TYPE_PREFIX: Record<string, string> = {
   c2c_bivouac: '[Bivouac C2C]',
   osm_shop: '[Ravitaillement]',
   sncf_gare: '[Gare]',
+  dt_lodging: '[Hébergement]',
 };
 
 function xmlEscape(s: string): string {
@@ -66,7 +67,9 @@ export function buildEnrichedGpx(
             ? 'bivouac (Camptocamp)'
             : source === 'sncf'
               ? 'gare SNCF'
-              : typeValeur;
+              : source === 'datatourisme'
+                ? `hébergement (DATAtourisme)`
+                : typeValeur;
       const desc = `${typeLabel}${
         alt !== undefined ? ' · ' + alt + ' m' : ''
       } · ${Math.round(distM)} m du tracé`;
@@ -86,6 +89,8 @@ export function buildEnrichedGpx(
   if (usedSources.has('osm')) labels.push('OpenStreetMap (ODbL)');
   if (usedSources.has('c2c')) labels.push('Camptocamp (CC BY-SA)');
   if (usedSources.has('sncf')) labels.push('SNCF — Gares de voyageurs (LOV2)');
+  if (usedSources.has('datatourisme'))
+    labels.push('DATAtourisme / ADN Tourisme (Licence Ouverte)');
   const sourcesLabel = labels.length > 0 ? labels.join(' + ') : 'refuges.info (CC BY-SA 2.0)';
   return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="refugesgpx" xmlns="http://www.topografix.com/GPX/1/1">

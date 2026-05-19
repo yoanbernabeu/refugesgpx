@@ -14,7 +14,8 @@ import { fetchPOIsInBbox } from '@/lib/refuges-api';
 import { fetchWaterPointsOSM, fetchShopsOSM } from '@/lib/overpass-api';
 import { fetchBivouacsC2C } from '@/lib/camptocamp-api';
 import { fetchGaresSNCF } from '@/lib/transports-api';
-import { BUFFER_STEPS, TYPE_LABELS, type TypeKey } from '@/lib/types';
+import { fetchDatatourismeLodging } from '@/lib/datatourisme-api';
+import { BUFFER_STEPS, DT_GROUPS, TYPE_LABELS, type TypeKey } from '@/lib/types';
 import type { PoiCandidate } from '@/lib/types';
 import { loadAllMarkerImages } from '@/lib/markers';
 import { BASEMAPS, type BasemapId } from '@/lib/basemaps';
@@ -164,6 +165,7 @@ export function MapView() {
   const bufferStepIdx = useAppStore((s) => s.bufferStepIdx);
   const enabledTypes = useAppStore((s) => s.enabledTypes);
   const enabledAnnexTypes = useAppStore((s) => s.enabledAnnexTypes);
+  const enabledDtGroups = useAppStore((s) => s.enabledDtGroups);
   const setCandidates = useAppStore((s) => s.setCandidates);
   const setAnnexCandidates = useAppStore((s) => s.setAnnexCandidates);
   const setLoading = useAppStore((s) => s.setLoading);
@@ -356,6 +358,7 @@ export function MapView() {
     const wantBivouac = enabledAnnexTypes.has('c2c_bivouac' as TypeKey);
     const wantShop = enabledAnnexTypes.has('osm_shop' as TypeKey);
     const wantGare = enabledAnnexTypes.has('sncf_gare' as TypeKey);
+    const wantLodging = enabledAnnexTypes.has('dt_lodging' as TypeKey);
 
     const tasks: Promise<PoiCandidate[]>[] = [];
     if (wantWater) {
@@ -392,6 +395,32 @@ export function MapView() {
         ),
       );
     }
+    if (wantLodging) {
+      // Buffer standard du slider — l'idée est de pouvoir trouver un hébergement
+      // de repli à n'importe quel endroit de la trace (court-circuit, bail-out
+      // en cas de météo qui tourne, blessure, étape qui s'allonge…).
+      //
+      // Filtre par sous-groupe DT (Refuges privés / Gîtes / Hôtels / etc.) :
+      // on construit le set des URIs ontologiques autorisées à partir des
+      // groupes activés dans le store. Si aucun groupe n'est activé, on saute
+      // carrément le fetch (l'utilisateur a tout décoché manuellement).
+      const allowedSubtypes = new Set<string>();
+      for (const g of enabledDtGroups) {
+        const meta = DT_GROUPS[g];
+        if (meta) for (const sub of meta.subtypes) allowedSubtypes.add(sub);
+      }
+      if (allowedSubtypes.size > 0) {
+        tasks.push(
+          fetchDatatourismeLodging(bbox, ctrl.signal).then((pois) => {
+            const filtered = pois.filter((f) => {
+              const sub = (f.properties as { dtSubtype?: string }).dtSubtype;
+              return sub ? allowedSubtypes.has(sub) : false;
+            });
+            return filterByDistance(line, filtered, bufferM, 'datatourisme');
+          }),
+        );
+      }
+    }
 
     Promise.all(tasks)
       .then((results) => {
@@ -412,6 +441,7 @@ export function MapView() {
     trace,
     bufferStepIdx,
     enabledAnnexTypes,
+    enabledDtGroups,
     setAnnexCandidates,
     setAnnexLoading,
     setAnnexError,

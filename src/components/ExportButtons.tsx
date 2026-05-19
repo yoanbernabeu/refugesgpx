@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { Download, Printer } from 'lucide-react';
 import { Button } from './ui/Button';
 import { useAppStore } from '@/store/useAppStore';
@@ -18,6 +17,7 @@ export function ExportButtons() {
     selectedIds.has(c.id),
   );
   const hasSel = selectedCandidates.length > 0;
+  const n = selectedCandidates.length;
 
   const handleGpx = () => {
     const gpx = buildEnrichedGpx(trace, selectedCandidates);
@@ -37,32 +37,30 @@ export function ExportButtons() {
     window.open('/print', '_blank');
   };
 
+  // 2 boutons côte à côte en grid pour minimiser la hauteur verticale.
+  // L'indicateur "0 POI" est affiché en intra-bouton plutôt que comme texte
+  // séparé, pour rester compact.
   return (
-    <section className="space-y-2 border-t border-slate-200 pt-3">
+    <div className="grid grid-cols-2 gap-2">
       <Button
         variant="primary"
-        className="w-full"
         onClick={handleGpx}
         disabled={!hasSel}
+        title={hasSel ? `Exporter ${n} POI(s) en GPX` : 'Cocher au moins un POI'}
       >
-        <Download className="h-4 w-4" />
-        Exporter GPX ({selectedCandidates.length} POIs)
+        <Download className="h-3.5 w-3.5" />
+        GPX{hasSel ? ` (${n})` : ''}
       </Button>
       <Button
         variant="outline"
-        className="w-full"
         onClick={handlePrint}
         disabled={!hasSel}
+        title={hasSel ? 'Ouvrir le topo PDF imprimable' : 'Cocher au moins un POI'}
       >
-        <Printer className="h-4 w-4" />
-        Exporter le topo PDF
+        <Printer className="h-3.5 w-3.5" />
+        Topo PDF
       </Button>
-      {!hasSel && (
-        <p className="text-center text-[11px] text-slate-400">
-          Cocher au moins un POI pour activer l'export.
-        </p>
-      )}
-    </section>
+    </div>
   );
 }
 

@@ -5,6 +5,7 @@ import { TypeIcon } from './TypeIcon';
 import { useAppStore } from '@/store/useAppStore';
 import { getTypeMeta } from '@/lib/types';
 import { decodeHtmlEntities, formatDistance } from '@/lib/format';
+import { dtSubtypeLabel } from '@/lib/datatourisme-api';
 import { Loader2 } from 'lucide-react';
 
 export function POIList() {
@@ -49,6 +50,7 @@ export function POIList() {
             const checked = selectedIds.has(id);
             const alt = f.properties.coord?.alt;
             const subtype = (f.properties as { osmSubtype?: string }).osmSubtype;
+            const dtSub = (f.properties as { dtSubtype?: string }).dtSubtype;
             const typeLabel =
               source === 'osm'
                 ? (subtype ?? "point d'eau")
@@ -56,7 +58,9 @@ export function POIList() {
                   ? 'bivouac'
                   : source === 'sncf'
                     ? 'gare SNCF'
-                    : decodeHtmlEntities(t);
+                    : source === 'datatourisme'
+                      ? dtSubtypeLabel(dtSub)
+                      : decodeHtmlEntities(t);
             return (
               <li
                 key={id}
@@ -89,6 +93,11 @@ export function POIList() {
                     {source === 'sncf' && (
                       <span className="shrink-0 rounded-sm bg-indigo-100 px-1 text-[9px] font-semibold uppercase tracking-wider text-indigo-800">
                         SNCF
+                      </span>
+                    )}
+                    {source === 'datatourisme' && (
+                      <span className="shrink-0 rounded-sm bg-rose-100 px-1 text-[9px] font-semibold uppercase tracking-wider text-rose-800">
+                        DT
                       </span>
                     )}
                   </div>

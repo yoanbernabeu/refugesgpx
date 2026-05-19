@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { ParsedGpx, PoiCandidate, TypeKey } from '@/lib/types';
-import { REFUGES_TYPE_KEYS } from '@/lib/types';
+import type { DtGroup, ParsedGpx, PoiCandidate, TypeKey } from '@/lib/types';
+import { DT_GROUP_ORDER, REFUGES_TYPE_KEYS } from '@/lib/types';
 import { BASEMAPS, DEFAULT_BASEMAP, type BasemapId } from '@/lib/basemaps';
 
 const BASEMAP_STORAGE_KEY = 'refuges-basemap';
@@ -30,6 +30,7 @@ interface AppState {
   bufferStepIdx: number; // index dans BUFFER_STEPS
   enabledTypes: Set<TypeKey>;
   enabledAnnexTypes: Set<TypeKey>; // sources annexes (Overpass, etc.) — vide par défaut
+  enabledDtGroups: Set<DtGroup>; // sous-groupes DATAtourisme — tous activés par défaut
   candidates: PoiCandidate[];
   annexCandidates: PoiCandidate[];
   selectedIds: Set<number>;
@@ -45,6 +46,10 @@ interface AppState {
   toggleType: (k: TypeKey) => void;
   toggleAnnexType: (k: TypeKey) => void;
   setEnabledTypes: (s: Set<TypeKey>) => void;
+  /** Active/désactive en un coup un ensemble de TypeKey (catégorie). */
+  setTypesEnabled: (keys: TypeKey[], enabled: boolean) => void;
+  toggleDtGroup: (g: DtGroup) => void;
+  setAllDtGroups: (enabled: boolean) => void;
   setCandidates: (c: PoiCandidate[]) => void;
   setAnnexCandidates: (c: PoiCandidate[]) => void;
   toggleSelected: (id: number) => void;
@@ -81,6 +86,7 @@ export const useAppStore = create<AppState>((set) => ({
   bufferStepIdx: 2, // 500 m par défaut
   enabledTypes: new Set<TypeKey>(['refuge', 'cabane', 'gite', 'pt_eau']),
   enabledAnnexTypes: new Set<TypeKey>(),
+  enabledDtGroups: new Set<DtGroup>(DT_GROUP_ORDER),
   candidates: [],
   annexCandidates: [],
   selectedIds: new Set<number>(),
@@ -114,6 +120,38 @@ export const useAppStore = create<AppState>((set) => ({
       return { enabledAnnexTypes: next };
     }),
   setEnabledTypes: (s) => set({ enabledTypes: s }),
+  setTypesEnabled: (keys, enabled) =>
+    set((s) => {
+      // Sépare automatiquement les types principaux des annexes. La distinction
+      // continue d'exister dans le store (pour ne pas casser MapView qui les
+      // fetche en deux pipelines), même si l'UI les présente regroupés.
+      const REFUGES = new Set<TypeKey>([
+        'refuge',
+        'cabane',
+        'gite',
+        'pt_eau',
+        'pt_passage',
+      ]);
+      const nextMain = new Set(s.enabledTypes);
+      const nextAnnex = new Set(s.enabledAnnexTypes);
+      for (const k of keys) {
+        const bucket = REFUGES.has(k) ? nextMain : nextAnnex;
+        if (enabled) bucket.add(k);
+        else bucket.delete(k);
+      }
+      return { enabledTypes: nextMain, enabledAnnexTypes: nextAnnex };
+    }),
+  toggleDtGroup: (g) =>
+    set((s) => {
+      const next = new Set(s.enabledDtGroups);
+      if (next.has(g)) next.delete(g);
+      else next.add(g);
+      return { enabledDtGroups: next };
+    }),
+  setAllDtGroups: (enabled) =>
+    set(() => ({
+      enabledDtGroups: enabled ? new Set<DtGroup>(DT_GROUP_ORDER) : new Set<DtGroup>(),
+    })),
   setCandidates: (c) =>
     set((s) => ({
       candidates: c,
@@ -152,5 +190,6 @@ export const useAppStore = create<AppState>((set) => ({
       detailOpenId: null,
       enabledTypes: new Set<TypeKey>(REFUGES_TYPE_KEYS.filter((t) => t !== 'pt_passage')),
       enabledAnnexTypes: new Set<TypeKey>(),
+      enabledDtGroups: new Set<DtGroup>(DT_GROUP_ORDER),
     }),
 }));

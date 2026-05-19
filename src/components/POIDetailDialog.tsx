@@ -7,6 +7,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { fetchComments, fetchPointFiche, refugesPhotoUrl } from '@/lib/refuges-api';
 import { fetchBivouacFicheC2C } from '@/lib/camptocamp-api';
 import { renderC2CMarkup } from '@/lib/c2c-markup';
+import { dtSubtypeLabel } from '@/lib/datatourisme-api';
 import { getTypeMeta } from '@/lib/types';
 import { decodeHtmlEntities, formatDate } from '@/lib/format';
 import { labelKey, labelValue, osmSubtitle } from '@/lib/osm-i18n';
@@ -55,6 +56,17 @@ export function POIDetailDialog() {
   if (openCandidate?.source === 'sncf') {
     return (
       <SNCFDetailDialog
+        candidate={openCandidate}
+        isSelected={selectedIds.has(openCandidate.id)}
+        onToggleSelect={() => toggleSelected(openCandidate.id)}
+        onClose={() => openDetail(null)}
+      />
+    );
+  }
+
+  if (openCandidate?.source === 'datatourisme') {
+    return (
+      <DatatourismeDetailDialog
         candidate={openCandidate}
         isSelected={selectedIds.has(openCandidate.id)}
         onToggleSelect={() => toggleSelected(openCandidate.id)}
@@ -458,6 +470,89 @@ function SNCFDetailDialog({
         >
           Chercher cette gare sur Wikipédia <ExternalLink className="h-3 w-3" />
         </a>
+
+        <div className="flex justify-end pt-2">
+          <Button
+            variant={isSelected ? 'subtle' : 'primary'}
+            onClick={() => {
+              onToggleSelect();
+              onClose();
+            }}
+          >
+            {isSelected ? (
+              <>
+                <Check className="h-4 w-4" /> Retirer de l'export
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4" /> Ajouter à l'export
+              </>
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Dialog DATAtourisme (hébergements, lecture statique) ──────────
+
+function DatatourismeDetailDialog({
+  candidate,
+  isSelected,
+  onToggleSelect,
+  onClose,
+}: {
+  candidate: PoiCandidate;
+  isSelected: boolean;
+  onToggleSelect: () => void;
+  onClose: () => void;
+}) {
+  const f = candidate.feature;
+  const p = f.properties as Record<string, unknown>;
+  const nom = (p.nom as string) ?? 'Hébergement';
+  const meta = getTypeMeta('dt_lodging');
+  const sub = p.dtSubtype as string | undefined;
+  const commune = p.dtCommune as string | undefined;
+  const web = p.dtWeb as string | undefined;
+  const subLabel = dtSubtypeLabel(sub);
+  // Le code commune est de la forme "20260#Calvi" → on extrait "Calvi" pour
+  // l'affichage et "20260" pour info code postal.
+  const communeName = commune?.includes('#') ? commune.split('#')[1] : commune;
+  const cp = commune?.includes('#') ? commune.split('#')[0] : undefined;
+
+  return (
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogTitle className="flex items-center gap-2.5 pr-8">
+          {meta && <TypeIcon meta={meta} size={18} marker />}
+          <span>{decodeHtmlEntities(nom)}</span>
+          <span className="rounded-sm bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-rose-800">
+            DT
+          </span>
+        </DialogTitle>
+        <div className="text-sm text-slate-500">
+          {subLabel}
+          {communeName && ` · ${decodeHtmlEntities(communeName)}`}
+          {cp && ` (${cp})`}
+        </div>
+
+        <div className="rounded bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
+          <b>À vérifier :</b> ouverture saisonnière, tarifs et disponibilités à
+          confirmer auprès de l'établissement. Données contribuées par les
+          offices de tourisme via DATAtourisme.
+        </div>
+
+        {web && (
+          <a
+            href={web}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline"
+          >
+            Site officiel <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
 
         <div className="flex justify-end pt-2">
           <Button
