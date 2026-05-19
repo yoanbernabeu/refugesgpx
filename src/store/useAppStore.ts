@@ -1,6 +1,29 @@
 import { create } from 'zustand';
 import type { ParsedGpx, PoiCandidate, TypeKey } from '@/lib/types';
 import { REFUGES_TYPE_KEYS } from '@/lib/types';
+import { BASEMAPS, DEFAULT_BASEMAP, type BasemapId } from '@/lib/basemaps';
+
+const BASEMAP_STORAGE_KEY = 'refuges-basemap';
+
+function readStoredBasemap(): BasemapId {
+  if (typeof window === 'undefined') return DEFAULT_BASEMAP;
+  try {
+    const raw = window.localStorage.getItem(BASEMAP_STORAGE_KEY);
+    if (raw && raw in BASEMAPS) return raw as BasemapId;
+  } catch {
+    // localStorage indisponible (mode privé, quota) → on retombe sur le défaut.
+  }
+  return DEFAULT_BASEMAP;
+}
+
+function writeStoredBasemap(id: BasemapId) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(BASEMAP_STORAGE_KEY, id);
+  } catch {
+    // ignore
+  }
+}
 
 interface AppState {
   trace: ParsedGpx | null;
@@ -15,6 +38,7 @@ interface AppState {
   apiError: string | null;
   annexError: string | null;
   detailOpenId: number | null;
+  basemap: BasemapId;
 
   setTrace: (t: ParsedGpx | null) => void;
   setBufferStepIdx: (i: number) => void;
@@ -30,6 +54,7 @@ interface AppState {
   setApiError: (e: string | null) => void;
   setAnnexError: (e: string | null) => void;
   openDetail: (id: number | null) => void;
+  setBasemap: (id: BasemapId) => void;
   reset: () => void;
 }
 
@@ -64,6 +89,7 @@ export const useAppStore = create<AppState>((set) => ({
   apiError: null,
   annexError: null,
   detailOpenId: null,
+  basemap: readStoredBasemap(),
 
   setTrace: (t) =>
     set({
@@ -111,6 +137,10 @@ export const useAppStore = create<AppState>((set) => ({
   setApiError: (e) => set({ apiError: e }),
   setAnnexError: (e) => set({ annexError: e }),
   openDetail: (id) => set({ detailOpenId: id }),
+  setBasemap: (id) => {
+    writeStoredBasemap(id);
+    set({ basemap: id });
+  },
   reset: () =>
     set({
       trace: null,

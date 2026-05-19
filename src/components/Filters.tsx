@@ -199,6 +199,7 @@ export function Filters() {
           . Vérifier sur le terrain.
         </p>
       </div>
+
     </section>
   );
 }

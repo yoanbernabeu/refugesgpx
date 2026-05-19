@@ -16,31 +16,65 @@ import { fetchBivouacsC2C } from '@/lib/camptocamp-api';
 import { BUFFER_STEPS, TYPE_LABELS, type TypeKey } from '@/lib/types';
 import type { PoiCandidate } from '@/lib/types';
 import { loadAllMarkerImages } from '@/lib/markers';
+import { BASEMAPS, type BasemapId } from '@/lib/basemaps';
+import { cn } from '@/lib/cn';
 
-// OSM standard : ouvert, très tolérant, attribution standard.
-// On évite délibérément de déclarer `glyphs` : les couches POI utilisent des
-// icon-image pré-rendues (pas de text-field), donc aucun PBF n'est nécessaire.
-const OSM_STYLE = {
-  version: 8,
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: [
-        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      ],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution:
-        '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
-    },
-  },
-  layers: [
-    { id: 'bg', type: 'background', paint: { 'background-color': '#e8f0e3' } },
-    { id: 'osm', type: 'raster', source: 'osm' },
-  ],
-} as unknown as maplibregl.StyleSpecification;
+const BASEMAP_SHORT_LABEL: Record<BasemapId, string> = {
+  osm: 'OSM',
+  'ign-plan': 'Plan IGN',
+  'ign-ortho': 'Photo IGN',
+};
+
+/**
+ * `'style.load'` est un event MapLibre valide qui fire après qu'un nouveau
+ * style est complètement chargé suite à `setStyle()` — c'est ce qu'on veut.
+ * Il n'est en revanche pas listé dans le typedef public, d'où le cast.
+ */
+const STYLE_LOAD_EVENT = 'style.load' as unknown as 'styledata';
+
+/**
+ * Pousse la trace courante dans la source `trace` à partir de l'état du store.
+ * Utilisé après un swap de fond pour rétablir le rendu sans dépendre d'un
+ * re-fire des effets React (qui sont gateé sur `isStyleLoaded`).
+ */
+function pushTraceFromStore(map: maplibregl.Map) {
+  const state = useAppStore.getState();
+  const src = map.getSource('trace') as maplibregl.GeoJSONSource | undefined;
+  if (!src) return;
+  if (!state.trace) {
+    src.setData({ type: 'FeatureCollection', features: [] });
+    return;
+  }
+  const line = traceToLine(state.trace);
+  const buffer = bufferLine(line, BUFFER_STEPS[state.bufferStepIdx]?.meters ?? 500);
+  src.setData({ type: 'FeatureCollection', features: [line, buffer] });
+}
+
+/**
+ * Pousse les POIs courants dans la source `pois`. Même logique que
+ * `pushTraceFromStore` — utilisé après un swap.
+ */
+function pushPoisFromStore(map: maplibregl.Map) {
+  const state = useAppStore.getState();
+  const src = map.getSource('pois') as maplibregl.GeoJSONSource | undefined;
+  if (!src) return;
+  const all = [...state.candidates, ...state.annexCandidates];
+  const feats = all.map(({ feature: f, distM, id }) => {
+    const typeValeur = f.properties.type?.valeur;
+    const iconImage = typeValeur ? `poi-${typeValeur}` : 'poi-default';
+    return {
+      ...f,
+      properties: {
+        ...f.properties,
+        id,
+        iconImage,
+        selected: state.selectedIds.has(id),
+        distM: Math.round(distM),
+      },
+    };
+  });
+  src.setData({ type: 'FeatureCollection', features: feats });
+}
 
 /**
  * Enregistre tous les markers SVG (cercle coloré + icône Lucide) comme images
@@ -55,6 +89,65 @@ async function registerAllMarkers(map: maplibregl.Map) {
 }
 
 const EMPTY_FC: FeatureCollection = { type: 'FeatureCollection', features: [] };
+
+/**
+ * Installe les sources/couches applicatives (`trace`, `pois`, halo) et déclenche
+ * le chargement des markers SVG. À appeler à l'init **et** après chaque
+ * `setStyle({ diff: false })` — MapLibre vide alors sources et couches.
+ *
+ * ⚠️ Ne pas attacher ici les handlers d'événements (`click`, `mouseenter`,
+ * `mouseleave`) : ils sont liés à la map, pas au style, et survivent au swap.
+ * Les ré-attacher ici les ferait s'accumuler à chaque changement de fond.
+ */
+function setupOverlays(map: maplibregl.Map, onMarkersReady: () => void) {
+  map.addSource('trace', { type: 'geojson', data: EMPTY_FC });
+  map.addLayer({
+    id: 'trace-buf',
+    type: 'fill',
+    source: 'trace',
+    filter: ['==', ['geometry-type'], 'Polygon'],
+    paint: { 'fill-color': '#1e40af', 'fill-opacity': 0.08, 'fill-outline-color': '#1e40af' },
+  });
+  map.addLayer({
+    id: 'trace-line',
+    type: 'line',
+    source: 'trace',
+    filter: ['==', ['geometry-type'], 'LineString'],
+    paint: { 'line-color': '#1e40af', 'line-width': 4, 'line-opacity': 0.9 },
+  });
+
+  registerAllMarkers(map)
+    .then(onMarkersReady)
+    .catch((e) => console.error('markers load failed', e));
+
+  map.addSource('pois', { type: 'geojson', data: EMPTY_FC });
+
+  // Halo doré sous le marker des POIs sélectionnés
+  map.addLayer({
+    id: 'pois-halo',
+    type: 'circle',
+    source: 'pois',
+    filter: ['==', ['get', 'selected'], true],
+    paint: {
+      'circle-radius': 20,
+      'circle-color': '#f5b800',
+      'circle-opacity': 0.5,
+      'circle-stroke-color': '#b85c38',
+      'circle-stroke-width': 1.5,
+    },
+  });
+  map.addLayer({
+    id: 'pois',
+    type: 'symbol',
+    source: 'pois',
+    layout: {
+      'icon-image': ['get', 'iconImage'],
+      'icon-size': ['case', ['get', 'selected'], 0.6, 0.5],
+      'icon-allow-overlap': true,
+      'icon-anchor': 'center',
+    },
+  });
+}
 
 export function MapView() {
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -80,15 +173,24 @@ export function MapView() {
   const annexCandidates = useAppStore((s) => s.annexCandidates);
   const selectedIds = useAppStore((s) => s.selectedIds);
   const openDetail = useAppStore((s) => s.openDetail);
+  const basemap = useAppStore((s) => s.basemap);
+
+  // Évite un swap inutile au tout premier rendu : la map est déjà initialisée
+  // avec le style courant du store.
+  const isFirstBasemapRun = React.useRef(true);
 
   // ─── Init map ───────────────────────────────────────────────────
   React.useEffect(() => {
     if (!containerRef.current || initialized.current) return;
     initialized.current = true;
 
+    // Lecture one-shot via getState : on ne veut pas que ce useEffect dépende
+    // de `basemap` (ce qui re-créerait la map à chaque swap).
+    const initialBasemap = useAppStore.getState().basemap;
+
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: OSM_STYLE,
+      style: BASEMAPS[initialBasemap].style,
       center: [2.5, 46.5],
       zoom: 5,
       attributionControl: { compact: true },
@@ -97,66 +199,20 @@ export function MapView() {
     map.addControl(new maplibregl.GeolocateControl({ trackUserLocation: false }), 'top-left');
     map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
 
+    // Handlers attachés une seule fois — ils ciblent le layer `pois` par id,
+    // donc ils continuent de fonctionner après chaque `setStyle` qui ré-ajoute
+    // le layer avec le même id.
+    map.on('click', 'pois', (e) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      const id = Number(f.properties?.id);
+      if (!isNaN(id)) openDetail(id);
+    });
+    map.on('mouseenter', 'pois', () => (map.getCanvas().style.cursor = 'pointer'));
+    map.on('mouseleave', 'pois', () => (map.getCanvas().style.cursor = ''));
+
     map.on('load', () => {
-      map.addSource('trace', { type: 'geojson', data: EMPTY_FC });
-      map.addLayer({
-        id: 'trace-buf',
-        type: 'fill',
-        source: 'trace',
-        filter: ['==', ['geometry-type'], 'Polygon'],
-        paint: { 'fill-color': '#1e40af', 'fill-opacity': 0.08, 'fill-outline-color': '#1e40af' },
-      });
-      map.addLayer({
-        id: 'trace-line',
-        type: 'line',
-        source: 'trace',
-        filter: ['==', ['geometry-type'], 'LineString'],
-        paint: { 'line-color': '#1e40af', 'line-width': 4, 'line-opacity': 0.9 },
-      });
-
-      // Markers SVG (cercle coloré + icône Lucide) — chargement asynchrone.
-      // Une fois prêts, on flip markersReady → l'effect de rendu des POIs se
-      // déclenchera (ou se ré-exécutera) pour afficher les icônes.
-      registerAllMarkers(map)
-        .then(() => setMarkersReady(true))
-        .catch((e) => console.error('markers load failed', e));
-
-      map.addSource('pois', { type: 'geojson', data: EMPTY_FC });
-
-      // Halo doré sous le marker des POIs sélectionnés
-      map.addLayer({
-        id: 'pois-halo',
-        type: 'circle',
-        source: 'pois',
-        filter: ['==', ['get', 'selected'], true],
-        paint: {
-          'circle-radius': 20,
-          'circle-color': '#f5b800',
-          'circle-opacity': 0.5,
-          'circle-stroke-color': '#b85c38',
-          'circle-stroke-width': 1.5,
-        },
-      });
-      map.addLayer({
-        id: 'pois',
-        type: 'symbol',
-        source: 'pois',
-        layout: {
-          'icon-image': ['get', 'iconImage'],
-          'icon-size': ['case', ['get', 'selected'], 0.6, 0.5],
-          'icon-allow-overlap': true,
-          'icon-anchor': 'center',
-        },
-      });
-
-      map.on('click', 'pois', (e) => {
-        const f = e.features?.[0];
-        if (!f) return;
-        const id = Number(f.properties?.id);
-        if (!isNaN(id)) openDetail(id);
-      });
-      map.on('mouseenter', 'pois', () => (map.getCanvas().style.cursor = 'pointer'));
-      map.on('mouseleave', 'pois', () => (map.getCanvas().style.cursor = ''));
+      setupOverlays(map, () => setMarkersReady(true));
     });
 
     mapRef.current = map;
@@ -179,6 +235,39 @@ export function MapView() {
       initialized.current = false;
     };
   }, [openDetail]);
+
+  // ─── Swap basemap ───────────────────────────────────────────────
+  // `diff: false` force un reset complet du style — sinon nos sources/layers
+  // imperatifs (trace, pois) interfèrent avec le diff.
+  //
+  // ⚠️ Piège : `'styledata'` fire AVANT que le style soit prêt
+  // (`isStyleLoaded() === false` à ce moment). On utilise `'style.load'` qui
+  // existe en MapLibre mais n'est pas dans le typedef (cf STYLE_LOAD_EVENT).
+  //
+  // On pousse la trace directement plutôt que de bumper un état React :
+  // les effets trace/POI sont gatés sur `isStyleLoaded` avec un fallback
+  // `map.once('load', ...)` qui ne refire pas après setStyle.
+  React.useEffect(() => {
+    if (isFirstBasemapRun.current) {
+      isFirstBasemapRun.current = false;
+      return;
+    }
+    const map = mapRef.current;
+    if (!map) return;
+    setMarkersReady(false);
+    map.setStyle(BASEMAPS[basemap].style, { diff: false });
+    map.once(STYLE_LOAD_EVENT, () => {
+      setupOverlays(map, () => {
+        // markersReady passe à true → l'effet POI re-fire normalement pour
+        // les futurs changements ; mais on pousse aussi en direct juste
+        // après le ré-enregistrement des icônes, car React 18 peut batcher
+        // le toggle false→true au point que l'effet ne se re-déclenche pas.
+        setMarkersReady(true);
+        pushPoisFromStore(map);
+      });
+      pushTraceFromStore(map);
+    });
+  }, [basemap]);
 
   // ─── Render trace + buffer ──────────────────────────────────────
   React.useEffect(() => {
@@ -346,5 +435,43 @@ export function MapView() {
     else map.once('load', apply);
   }, [candidates, annexCandidates, selectedIds, markersReady]);
 
-  return <div ref={containerRef} className="absolute inset-0 h-full w-full" />;
+  return (
+    <div className="absolute inset-0 h-full w-full">
+      <div ref={containerRef} className="absolute inset-0 h-full w-full" />
+      <BasemapSwitcher />
+    </div>
+  );
+}
+
+function BasemapSwitcher() {
+  const basemap = useAppStore((s) => s.basemap);
+  const setBasemap = useAppStore((s) => s.setBasemap);
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Fond de carte"
+      className="absolute top-2.5 right-2.5 z-10 flex gap-0.5 rounded-md border border-slate-200 bg-white/95 p-0.5 shadow-md backdrop-blur"
+    >
+      {(Object.keys(BASEMAPS) as BasemapId[]).map((id) => {
+        const active = basemap === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => setBasemap(id)}
+            className={cn(
+              'rounded px-2.5 py-1 text-xs font-medium transition-colors select-none',
+              active
+                ? 'bg-[var(--color-ink)] text-white'
+                : 'text-[var(--color-ink-mute)] hover:bg-slate-100 hover:text-[var(--color-ink)]',
+            )}
+          >
+            {BASEMAP_SHORT_LABEL[id]}
+          </button>
+        );
+      })}
+    </div>
+  );
 }

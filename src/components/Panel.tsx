@@ -5,10 +5,19 @@ import { Filters } from './Filters';
 import { POIList } from './POIList';
 import { ExportButtons } from './ExportButtons';
 import { useAppStore } from '@/store/useAppStore';
+import type { BasemapId } from '@/lib/basemaps';
+
+const BASEMAP_ATTRIBUTION: Record<BasemapId, { label: string; href: string }> = {
+  osm: { label: 'OpenStreetMap', href: 'https://www.openstreetmap.org/copyright' },
+  'ign-plan': { label: 'IGN Géoplateforme', href: 'https://geoservices.ign.fr/' },
+  'ign-ortho': { label: 'IGN Géoplateforme', href: 'https://geoservices.ign.fr/' },
+};
 
 export function Panel() {
   const trace = useAppStore((s) => s.trace);
   const reset = useAppStore((s) => s.reset);
+  const basemap = useAppStore((s) => s.basemap);
+  const fond = BASEMAP_ATTRIBUTION[basemap];
 
   return (
     <aside className="flex h-screen w-[380px] shrink-0 flex-col border-l border-[var(--color-paper-deep)] bg-white">
@@ -61,14 +70,13 @@ export function Panel() {
         <br />
         Fond ©{' '}
         <a
-          href="https://www.openstreetmap.org/copyright"
+          href={fond.href}
           target="_blank"
           rel="noopener"
           className="underline hover:text-[var(--color-accent)]"
         >
-          OpenStreetMap
-        </a>{' '}
-        contributors
+          {fond.label}
+        </a>
       </footer>
     </aside>
   );
